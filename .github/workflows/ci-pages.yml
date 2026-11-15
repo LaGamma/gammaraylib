@@ -1,4 +1,4 @@
-name: Build, Test & Deploy Wasm
+name: Build Test & Deploy Wasm
 
 on:
   push:
