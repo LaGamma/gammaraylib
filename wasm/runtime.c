@@ -8,12 +8,15 @@
 #include <emscripten.h>
 
 extern int glfwGetKey(void* window, int key);
-EM_JS(int, wasm_get_right_key, (int key), {
-    return (window._rightKeys && window._rightKeys[key]) ? 1 : 0;
+EM_JS(int, wasm_get_virtual_key, (int key), {
+    if (window._virtualKeys && Reflect.get(window._virtualKeys, key)) return 1;
+    if (window._rightKeys && Reflect.get(window._rightKeys, key)) return 1;
+    return 0;
 });
+
 static int mojo_glfwGetKey(void* win, int key) {
-    if (key == 344 || key == 345) {
-        return wasm_get_right_key(key);
+    if (wasm_get_virtual_key(key)) {
+        return 1;
     }
     return glfwGetKey(win, key);
 }

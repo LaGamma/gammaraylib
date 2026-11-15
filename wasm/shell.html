@@ -61,7 +61,7 @@
       position: fixed;
       inset: 0;
       pointer-events: none;
-      z-index: 15;
+      z-index: 30;
       user-select: none;
       -webkit-user-select: none;
       touch-action: none;
@@ -86,12 +86,11 @@
     }
     .grl-actions {
       position: fixed;
-      bottom: 32px;
-      right: 24px;
-      display: flex;
-      gap: 14px;
-      align-items: center;
-      pointer-events: auto;
+      bottom: 28px;
+      right: 28px;
+      width: 156px;
+      height: 120px;
+      pointer-events: none;
     }
     .grl-btn {
       background: rgba(18, 48, 84, 0.55);
@@ -104,12 +103,37 @@
       align-items: center;
       justify-content: center;
       backdrop-filter: blur(4px);
+      pointer-events: auto;
+      cursor: pointer;
     }
     .grl-action-btn {
-      width: 74px;
-      height: 74px;
+      position: absolute;
+      width: 72px;
+      height: 72px;
       border-radius: 50%;
-      font-size: 16px;
+      font-size: 18px;
+    }
+    .grl-action-btn[data-btn="b"] {
+      bottom: 0;
+      left: 0;
+    }
+    .grl-action-btn[data-btn="a"] {
+      top: 0;
+      right: 0;
+    }
+    @media (hover: none) and (pointer: coarse), (pointer: coarse) {
+      #fullscreen-btn {
+        top: 14px;
+        left: 14px;
+        bottom: auto;
+        right: auto;
+      }
+    }
+    body.grl-show-touch #fullscreen-btn {
+      top: 14px;
+      left: 14px;
+      bottom: auto;
+      right: auto;
     }
     .grl-pause-btn {
       position: fixed;
@@ -196,7 +220,7 @@
         labels: { a: 'A', b: 'B', pause: '❚❚' },
       },
       setKey(keyCode, isDown) {
-        window._virtualKeys[keyCode] = isDown ? 1 : 0;
+        Reflect.set(window._virtualKeys, keyCode, isDown ? 1 : 0);
       },
       configureTouch(opts) {
         if (!opts) return;
@@ -215,18 +239,28 @@
       },
     };
 
-    document.querySelectorAll('#grl-touch-overlay .grl-btn[data-btn]').forEach((btn) => {
-      const name = btn.dataset.btn;
+    document.querySelectorAll('#grl-touch-overlay .grl-btn').forEach((btn) => {
+      const name = btn.getAttribute('data-btn');
       const setPressed = (down, e) => {
-        e.preventDefault();
-        const codes = window.gammaraylib.touchConfig.keys[name] || [];
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        const codes = Reflect.get(window.gammaraylib.touchConfig.keys, name) || Array.of();
         for (const k of codes) window.gammaraylib.setKey(k, down);
         btn.classList.toggle('active', down);
       };
       btn.addEventListener('touchstart', (e) => setPressed(true, e), { passive: false });
       btn.addEventListener('touchend', (e) => setPressed(false, e), { passive: false });
       btn.addEventListener('touchcancel', (e) => setPressed(false, e), { passive: false });
+      btn.addEventListener('mousedown', (e) => setPressed(true, e));
+      btn.addEventListener('mouseup', (e) => setPressed(false, e));
+      btn.addEventListener('mouseleave', () => setPressed(false, null));
     });
+
+    if (new URLSearchParams(window.location.search).get('touch') === '1' || navigator.maxTouchPoints > 0) {
+      document.body.classList.add('grl-show-touch');
+    }
 
     window.addEventListener('blur', () => { window._virtualKeys = {}; });
 
