@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="darkreader-lock">
+  <title>{{TITLE}}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    #canvas {
+      display: block;
+      outline: none;
+    }
+    #status {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #cfe8ff;
+      font-size: 14px;
+      background: rgba(0, 0, 0, 0.65);
+      padding: 6px 12px;
+      border-radius: 6px;
+      pointer-events: none;
+    }
+    #fullscreen-btn {
+      position: fixed;
+      bottom: 14px;
+      right: 14px;
+      z-index: 20;
+      background: rgba(12, 34, 62, 0.78);
+      color: #e6f4ff;
+      border: 1px solid rgba(130, 195, 255, 0.45);
+      border-radius: 8px;
+      padding: 8px 13px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    #fullscreen-btn:hover {
+      background: rgba(24, 64, 112, 0.92);
+      border-color: rgba(175, 220, 255, 0.8);
+    }
+    #fullscreen-btn:active {
+      transform: scale(0.96);
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Loading {{TITLE}}...</div>
+  <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+  <button id="fullscreen-btn" type="button" title="Toggle Fullscreen">⛶ Fullscreen</button>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const canvasEl = document.getElementById('canvas');
+    const fsBtn = document.getElementById('fullscreen-btn');
+
+    function toggleFullscreen() {
+      const doc = document;
+      const root = doc.documentElement;
+      if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+        if (root.requestFullscreen) {
+          root.requestFullscreen().catch(() => {});
+        } else if (root.webkitRequestFullscreen) {
+          root.webkitRequestFullscreen();
+        }
+      } else {
+        if (doc.exitFullscreen) {
+          doc.exitFullscreen().catch(() => {});
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        }
+      }
+      canvasEl.focus();
+    }
+
+    fsBtn.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+      fsBtn.textContent = document.fullscreenElement ? '⛶ Exit Fullscreen' : '⛶ Fullscreen';
+      canvasEl.focus();
+    });
+
+    window._decodedPngs = window._decodedPngs || {};
+
+    function decodeImageToTex(path, url) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = img.width;
+          c.height = img.height;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const rgba = ctx.getImageData(0, 0, img.width, img.height).data;
+          window._decodedPngs[path] = {
+            width: img.width,
+            height: img.height,
+            rgba: new Uint8Array(rgba.buffer),
+          };
+          resolve();
+        };
+        img.onerror = () => {
+          console.warn('[Texture Preload] Failed to decode:', path);
+          resolve();
+        };
+        img.src = url;
+      });
+    }
+    function fitCanvas() {
+      const margin = 32;
+      const availW = Math.max(100, window.innerWidth - margin);
+      const availH = Math.max(100, window.innerHeight - margin);
+      const aspect = (canvasEl.width || 800) / (canvasEl.height || 600);
+
+      let targetW = availW;
+      let targetH = targetW / aspect;
+      if (targetH > availH) {
+        targetH = availH;
+        targetW = targetH * aspect;
+      }
+      canvasEl.style.setProperty('width', `${Math.floor(targetW)}px`, 'important');
+      canvasEl.style.setProperty('height', `${Math.floor(targetH)}px`, 'important');
+    }
+
+    window.addEventListener('resize', fitCanvas);
+    document.addEventListener('fullscreenchange', () => {
+      fsBtn.textContent = document.fullscreenElement ? '⛶ Exit Fullscreen' : '⛶ Fullscreen';
+      fitCanvas();
+      canvasEl.focus();
+    });
+
+    var Module = {
+      canvas: canvasEl,
+      print: function(text) { console.log(text); },
+      printErr: function(text) { console.error(text); },
+      setStatus: function(text) {
+        if (!text) {
+          statusEl.style.display = 'none';
+        } else {
+          statusEl.textContent = text;
+          statusEl.style.display = 'block';
+        }
+      },
+      monitorRunDependencies: function(left) {
+        if (left === 0) {
+          statusEl.style.display = 'none';
+        } else {
+          statusEl.textContent = `Loading assets (${left} remaining)...`;
+        }
+      },
+      onRuntimeInitialized: function() {
+        const tasks = [];
+        function walk(dir) {
+          let entries;
+          try { entries = FS.readdir(dir); } catch (_) { return; }
+          for (const name of entries) {
+            if (name === '.' || name === '..') continue;
+            const full = (dir === '/' ? '' : dir) + '/' + name;
+            const stat = FS.stat(full);
+            if (FS.isDir(stat.mode)) {
+              walk(full);
+            } else if (name.toLowerCase().endsWith('.png')) {
+              const bytes = FS.readFile(full);
+              const blob = new Blob([bytes], { type: 'image/png' });
+              const url = URL.createObjectURL(blob);
+              const relPath = full.startsWith('/') ? full.slice(1) : full;
+              tasks.push(
+                decodeImageToTex(relPath, url).finally(() => URL.revokeObjectURL(url))
+              );
+            }
+          }
+        }
+        walk('/assets');
+
+        Promise.all(tasks).then(() => {
+          statusEl.style.display = 'none';
+          canvasEl.focus();
+          Module.callMain();
+          fitCanvas();
+        });
+      }
+    };
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Build & distribution directories
+dist/
+build/
+
+# Compiled binaries & WebAssembly
+*.so
+*.wasm
+
+# Python cache
+__pycache__/
