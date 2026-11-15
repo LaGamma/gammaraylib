@@ -10,6 +10,7 @@
     html, body {
       width: 100%;
       height: 100%;
+      height: 100dvh;
       background: #000;
       overflow: hidden;
       display: flex;
@@ -196,6 +197,9 @@
     }
 
     fsBtn.addEventListener('click', toggleFullscreen);
+    if (!document.fullscreenEnabled && !document.webkitFullscreenEnabled) {
+      fsBtn.style.display = 'none';
+    }
 
     window._virtualKeys = window._virtualKeys || {};
     window.gammaraylib = {

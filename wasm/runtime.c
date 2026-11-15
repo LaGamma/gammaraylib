@@ -114,6 +114,8 @@ EM_JS(void, wasm_play_sound, (uintptr_t data_ptr, size_t byte_len, int64_t sampl
                 window._mojoAudioCtx.resume();
             }
         };
+        window.addEventListener('touchstart', resumeAudio, { passive: true });
+        window.addEventListener('touchend', resumeAudio, { passive: true });
         window.addEventListener('pointerdown', resumeAudio);
         window.addEventListener('keydown', resumeAudio);
     }
