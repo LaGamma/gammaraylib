@@ -1,6 +1,6 @@
 # gammaraylib
 
-[![Live Wasm Demo](https://shields.io)](https://lagamma.github.io/gammaraylib/)
+[![Live Wasm Demo](https://img.shields.io/badge/%E2%96%B6_Live_Demo-gammaraylib-FF4F00?style=for-the-badge&logo=webassembly&logoColor=white)](https://lagamma.github.io/gammaraylib/)
 
 A lightweight, raylib-inspired 2D/3D game library for **Mojo** targeting **Native Linux** (GLFW + OpenGL 4.6) and **WebAssembly** (Emscripten + WebGL 2 + WebAudio).
 
