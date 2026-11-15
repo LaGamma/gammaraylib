@@ -7,6 +7,17 @@
 #include <stdio.h>
 #include <emscripten.h>
 
+extern int glfwGetKey(void* window, int key);
+EM_JS(int, wasm_get_right_key, (int key), {
+    return (window._rightKeys && window._rightKeys[key]) ? 1 : 0;
+});
+static int mojo_glfwGetKey(void* win, int key) {
+    if (key == 344 || key == 345) {
+        return wasm_get_right_key(key);
+    }
+    return glfwGetKey(win, key);
+}
+
 // --- Web Audio API Bridge (Replaces libpulse-simple.so.0) ---
 EM_JS(void, webaudio_play_pcm, (uintptr_t data_ptr, size_t byte_len, int sample_rate, int channels, int format), {
     if (!window._mojoAudioCtx) {
@@ -244,6 +255,8 @@ int64_t mojo_dlsym(int64_t handle, const char* symbol) {
     if (symbol) {
         if (strcmp(symbol, "png_image_begin_read_from_file") == 0) return (int64_t)(uintptr_t)png_image_begin_read_from_file;
         if (strcmp(symbol, "png_image_finish_read") == 0)          return (int64_t)(uintptr_t)png_image_finish_read;
+        if (strcmp(symbol, "glfwGetKey") == 0) return (int64_t)(uintptr_t)mojo_glfwGetKey;
+
     }
     // In Emscripten, NULL (0) is RTLD_DEFAULT for the main module!
     void* res = dlsym(NULL, symbol);

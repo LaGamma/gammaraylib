@@ -142,6 +142,27 @@
       canvasEl.focus();
     });
 
+    window._rightKeys = {};
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'ShiftRight') {
+        window._rightKeys[344] = 1;
+        e.stopImmediatePropagation();
+      } else if (e.code === 'ControlRight') {
+        window._rightKeys[345] = 1;
+        e.stopImmediatePropagation();
+      }
+    }, true);
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'ShiftRight') {
+        window._rightKeys[344] = 0;
+        e.stopImmediatePropagation();
+      } else if (e.code === 'ControlRight') {
+        window._rightKeys[345] = 0;
+        e.stopImmediatePropagation();
+      }
+    }, true);
+    window.addEventListener('blur', () => { window._rightKeys = {}; });
+
     var Module = {
       canvas: canvasEl,
       print: function(text) { console.log(text); },
