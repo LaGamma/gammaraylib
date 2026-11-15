@@ -38,7 +38,7 @@
       bottom: 14px;
       right: 14px;
       z-index: 20;
-      background: rgba(12, 34, 62, 0.78);
+      background: rgba(14, 38, 68, 0.78);
       color: #e6f4ff;
       border: 1px solid rgba(130, 195, 255, 0.45);
       border-radius: 8px;
@@ -46,7 +46,6 @@
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      background: rgba(14, 38, 68, 0.78);
       transition: background 0.15s ease, transform 0.1s ease;
     }
     #fullscreen-btn:hover {
@@ -68,9 +67,21 @@
     }
     @media (hover: none) and (pointer: coarse), (pointer: coarse) {
       #grl-touch-overlay { display: block; }
+      #fullscreen-btn {
+        top: 14px;
+        left: 14px;
+        bottom: auto;
+        right: auto;
+      }
     }
     body.grl-show-touch #grl-touch-overlay {
       display: block;
+    }
+    body.grl-show-touch #fullscreen-btn {
+      top: 14px;
+      left: 14px;
+      bottom: auto;
+      right: auto;
     }
     .grl-dpad {
       position: fixed;
@@ -83,6 +94,7 @@
       grid-template-rows: repeat(3, 1fr);
       gap: 6px;
       pointer-events: auto;
+      touch-action: none;
     }
     .grl-actions {
       position: fixed;
@@ -93,7 +105,7 @@
       pointer-events: none;
     }
     .grl-btn {
-      background: rgba(18, 48, 84, 0.55);
+      background: rgba(14, 38, 68, 0.78);
       border: 2px solid rgba(150, 215, 255, 0.45);
       border-radius: 14px;
       color: #e6f4ff;
@@ -102,7 +114,6 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(14, 38, 68, 0.78);
       pointer-events: auto;
       cursor: pointer;
     }
@@ -120,20 +131,6 @@
     .grl-action-btn[data-btn="a"] {
       top: 0;
       right: 0;
-    }
-    @media (hover: none) and (pointer: coarse), (pointer: coarse) {
-      #fullscreen-btn {
-        top: 14px;
-        left: 14px;
-        bottom: auto;
-        right: auto;
-      }
-    }
-    body.grl-show-touch #fullscreen-btn {
-      top: 14px;
-      left: 14px;
-      bottom: auto;
-      right: auto;
     }
     .grl-pause-btn {
       position: fixed;
@@ -199,10 +196,6 @@
     }
 
     fsBtn.addEventListener('click', toggleFullscreen);
-    document.addEventListener('fullscreenchange', () => {
-      fsBtn.textContent = document.fullscreenElement ? '⛶ Exit Fullscreen' : '⛶ Fullscreen';
-      canvasEl.focus();
-    });
 
     window._virtualKeys = window._virtualKeys || {};
     window.gammaraylib = {
@@ -226,6 +219,13 @@
           HEAPU8[Number(window._wasmKeyBufPtr) + k] = isDown ? 1 : 0;
         }
       },
+      clearKeys() {
+        window._virtualKeys = {};
+        if (window._wasmKeyBufPtr !== undefined && typeof HEAPU8 !== 'undefined') {
+          const base = Number(window._wasmKeyBufPtr);
+          for (let i = 0; i < 512; i++) HEAPU8[base + i] = 0;
+        }
+      },
       configureTouch(opts) {
         if (!opts) return;
         if (opts.enabled === false) {
@@ -243,7 +243,97 @@
       },
     };
 
-    document.querySelectorAll('#grl-touch-overlay .grl-btn').forEach((btn) => {
+    // --- Continuous-Slide D-Pad (Touch & Mouse Drag) ---
+    const dpadEl = document.querySelector('#grl-touch-overlay .grl-dpad');
+    const dpadDirs = Array.of('up', 'down', 'left', 'right');
+    let activeDpadTouchId = null;
+    let dpadMouseDown = false;
+
+    function updateDpadFromPoint(clientX, clientY) {
+      const rect = dpadEl.getBoundingClientRect();
+      const cx = rect.left + rect.width * 0.5;
+      const cy = rect.top + rect.height * 0.5;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      const deadzone = rect.width * 0.14;
+
+      const pressed = new Set();
+      if (Math.hypot(dx, dy) > deadzone) {
+        if (dy < -deadzone * 0.7) pressed.add('up');
+        if (dy > deadzone * 0.7) pressed.add('down');
+        if (dx < -deadzone * 0.7) pressed.add('left');
+        if (dx > deadzone * 0.7) pressed.add('right');
+      }
+
+      for (const dir of dpadDirs) {
+        const isDown = pressed.has(dir);
+        const btn = dpadEl.querySelector(`.grl-btn[data-btn="${dir}"]`);
+        if (btn) btn.classList.toggle('active', isDown);
+        const codes = Reflect.get(window.gammaraylib.touchConfig.keys, dir) || Array.of();
+        for (const k of codes) window.gammaraylib.setKey(k, isDown);
+      }
+    }
+
+    function releaseDpad() {
+      activeDpadTouchId = null;
+      dpadMouseDown = false;
+      for (const dir of dpadDirs) {
+        const btn = dpadEl.querySelector(`.grl-btn[data-btn="${dir}"]`);
+        if (btn) btn.classList.remove('active');
+        const codes = Reflect.get(window.gammaraylib.touchConfig.keys, dir) || Array.of();
+        for (const k of codes) window.gammaraylib.setKey(k, false);
+      }
+    }
+
+    dpadEl.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (activeDpadTouchId === null && e.changedTouches.length > 0) {
+        const t = e.changedTouches.item(0);
+        activeDpadTouchId = t.identifier;
+        updateDpadFromPoint(t.clientX, t.clientY);
+      }
+    }, { passive: false });
+
+    dpadEl.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches.item(i);
+        if (t && t.identifier === activeDpadTouchId) {
+          updateDpadFromPoint(t.clientX, t.clientY);
+          break;
+        }
+      }
+    }, { passive: false });
+
+    const onDpadTouchEnd = (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches.item(i);
+        if (t && t.identifier === activeDpadTouchId) {
+          releaseDpad();
+          break;
+        }
+      }
+    };
+    dpadEl.addEventListener('touchend', onDpadTouchEnd, { passive: false });
+    dpadEl.addEventListener('touchcancel', onDpadTouchEnd, { passive: false });
+
+    dpadEl.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dpadMouseDown = true;
+      updateDpadFromPoint(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (dpadMouseDown) updateDpadFromPoint(e.clientX, e.clientY);
+    });
+    window.addEventListener('mouseup', () => {
+      if (dpadMouseDown) releaseDpad();
+    });
+
+    // --- Action & Pause Buttons ---
+    document.querySelectorAll('#grl-touch-overlay .grl-action-btn, #grl-touch-overlay .grl-pause-btn').forEach((btn) => {
       const name = btn.getAttribute('data-btn');
       const setPressed = (down, e) => {
         if (e) {
@@ -262,12 +352,34 @@
       btn.addEventListener('mouseleave', () => setPressed(false, null));
     });
 
+    // --- Right Shift (344) & Right Control (345) Desktop Bridge ---
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'ShiftRight') {
+        window.gammaraylib.setKey(344, true);
+        e.stopImmediatePropagation();
+      } else if (e.code === 'ControlRight') {
+        window.gammaraylib.setKey(345, true);
+        e.stopImmediatePropagation();
+      }
+    }, true);
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'ShiftRight') {
+        window.gammaraylib.setKey(344, false);
+        e.stopImmediatePropagation();
+      } else if (e.code === 'ControlRight') {
+        window.gammaraylib.setKey(345, false);
+        e.stopImmediatePropagation();
+      }
+    }, true);
+
     if (new URLSearchParams(window.location.search).get('touch') === '1' || navigator.maxTouchPoints > 0) {
       document.body.classList.add('grl-show-touch');
     }
 
-    window.addEventListener('blur', () => { window._virtualKeys = {}; });
-
+    window.addEventListener('blur', () => {
+      releaseDpad();
+      window.gammaraylib.clearKeys();
+    });
 
     window._decodedPngs = window._decodedPngs || {};
 
@@ -281,11 +393,11 @@
           const ctx = c.getContext('2d');
           ctx.drawImage(img, 0, 0);
           const rgba = ctx.getImageData(0, 0, img.width, img.height).data;
-          window._decodedPngs[path] = {
+          Reflect.set(window._decodedPngs, path, {
             width: img.width,
             height: img.height,
             rgba: new Uint8Array(rgba.buffer),
-          };
+          });
           resolve();
         };
         img.onerror = () => {
@@ -295,6 +407,7 @@
         img.src = url;
       });
     }
+
     function fitCanvas() {
       const margin = 32;
       const availW = Math.max(100, window.innerWidth - margin);
@@ -317,27 +430,6 @@
       fitCanvas();
       canvasEl.focus();
     });
-
-    window._rightKeys = {};
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'ShiftRight') {
-        window._rightKeys[344] = 1;
-        e.stopImmediatePropagation();
-      } else if (e.code === 'ControlRight') {
-        window._rightKeys[345] = 1;
-        e.stopImmediatePropagation();
-      }
-    }, true);
-    window.addEventListener('keyup', (e) => {
-      if (e.code === 'ShiftRight') {
-        window._rightKeys[344] = 0;
-        e.stopImmediatePropagation();
-      } else if (e.code === 'ControlRight') {
-        window._rightKeys[345] = 0;
-        e.stopImmediatePropagation();
-      }
-    }, true);
-    window.addEventListener('blur', () => { window._rightKeys = {}; });
 
     var Module = {
       canvas: canvasEl,
