@@ -7,15 +7,28 @@
 #include <stdio.h>
 #include <emscripten.h>
 
+// --- Zero-Overhead Virtual & Right-Modifier Key Buffer ---
 extern int glfwGetKey(void* window, int key);
-EM_JS(int, wasm_get_virtual_key, (int key), {
-    if (window._virtualKeys && Reflect.get(window._virtualKeys, key)) return 1;
-    if (window._rightKeys && Reflect.get(window._rightKeys, key)) return 1;
-    return 0;
+
+static uint8_t wasm_virtual_keys[512] = {0};
+
+EM_JS(void, wasm_init_virtual_keys, (uintptr_t ptr), {
+    window._wasmKeyBufPtr = Number(ptr);
+    if (window._virtualKeys && typeof HEAPU8 !== 'undefined') {
+        for (const [k, v] of Object.entries(window._virtualKeys)) {
+            const idx = Number(k);
+            if (idx >= 0 && idx < 512) HEAPU8[window._wasmKeyBufPtr + idx] = v ? 1 : 0;
+        }
+    }
 });
 
 static int mojo_glfwGetKey(void* win, int key) {
-    if (wasm_get_virtual_key(key)) {
+    static int inited = 0;
+    if (!inited) {
+        wasm_init_virtual_keys((uintptr_t)wasm_virtual_keys);
+        inited = 1;
+    }
+    if (key >= 0 && key < 512 && wasm_virtual_keys[key]) {
         return 1;
     }
     return glfwGetKey(win, key);
@@ -56,7 +69,7 @@ EM_JS(void, webaudio_play_pcm, (uintptr_t data_ptr, size_t byte_len, int sample_
                 const b0 = u8[idx];
                 const b1 = u8[idx + 1];
                 const b2 = u8[idx + 2];
-                const val = ((b2 << 24) | (b1 << 16) | (b0 << 8)) >> 8;
+                const val = ((b2 << 24) | (u8[idx + 1] << 16) | (b0 << 8)) >> 8;
                 dst[i] = val / 8388608.0;
             }
         }
@@ -90,7 +103,6 @@ EM_JS(void, webaudio_play_pcm, (uintptr_t data_ptr, size_t byte_len, int sample_
 
     source.start();
 });
-
 
 EM_JS(void, wasm_play_sound, (uintptr_t data_ptr, size_t byte_len, int64_t sample_rate_bi, int64_t channels_bi, int64_t bits_bi, uintptr_t state_ptr), {
     if (!window._mojoAudioCtx) {
@@ -186,27 +198,6 @@ EM_JS(void, wasm_play_sound, (uintptr_t data_ptr, size_t byte_len, int64_t sampl
     source.start();
 });
 
-EM_JS(int, wasm_load_ttf, (uintptr_t path_ptr, int64_t cell_bi, uintptr_t pixels_ptr, uintptr_t advances_ptr), {
-    let path = UTF8ToString(Number(path_ptr));
-    if (path.startsWith('/')) path = path.slice(1);
-    const entry = window._decodedFonts && window._decodedFonts[path];
-    if (!entry) {
-        console.warn('[wasm_load_ttf] Font not found:', path);
-        return 0;
-    }
-
-    const pBase = Number(pixels_ptr);
-    const aBase = Number(advances_ptr);
-
-    HEAPU8.set(entry.rgba, pBase);
-    for (let i = 0; i < 96; i++) {
-        HEAPF32[(aBase >> 2) + i] = entry.advances[i];
-    }
-    console.log('[wasm_load_ttf] Loaded font into Wasm:', path, 'pBase:', pBase);
-    return 1;
-});
-
-
 EM_JS(void, webaudio_set_music_gain, (float volume), {
     window._mojoLastRequestedVol = volume;
     if (window._mojoMusicGain && window._mojoAudioCtx) {
@@ -219,6 +210,7 @@ EM_JS(void, webaudio_set_music_gain, (float volume), {
     }
 });
 
+// --- Pre-decoded Browser PNG Image Bridge (Replaces libpng16) ---
 EM_JS(int, js_png_begin, (uintptr_t img_ptr, const char* path_ptr), {
     let path = UTF8ToString(Number(path_ptr));
     if (path.startsWith('/')) path = path.slice(1);
@@ -257,9 +249,8 @@ int64_t mojo_dlopen(int64_t filename, int32_t flags) {
 int64_t mojo_dlsym(int64_t handle, const char* symbol) {
     if (symbol) {
         if (strcmp(symbol, "png_image_begin_read_from_file") == 0) return (int64_t)(uintptr_t)png_image_begin_read_from_file;
-        if (strcmp(symbol, "png_image_finish_read") == 0)          return (int64_t)(uintptr_t)png_image_finish_read;
+        if (strcmp(symbol, "png_image_finish_read") == 0) return (int64_t)(uintptr_t)png_image_finish_read;
         if (strcmp(symbol, "glfwGetKey") == 0) return (int64_t)(uintptr_t)mojo_glfwGetKey;
-
     }
     // In Emscripten, NULL (0) is RTLD_DEFAULT for the main module!
     void* res = dlsym(NULL, symbol);
@@ -269,8 +260,6 @@ int64_t mojo_dlsym(int64_t handle, const char* symbol) {
     }
     return (int64_t)(uintptr_t)res;
 }
-
-
 
 // --- Mojo Runtime Allocator ---
 void* KGEN_CompilerRT_AlignedAlloc(size_t alignment, size_t size) {
