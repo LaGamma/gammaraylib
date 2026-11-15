@@ -1,6 +1,10 @@
 # gammaraylib
 
+[![Live Wasm Demo](https://lagamma.github.io/gammaraylib)](https://lagamma.github.io/gammaraylib/)
+
 A lightweight, raylib-inspired 2D/3D game library for **Mojo** targeting **Native Linux** (GLFW + OpenGL 4.6) and **WebAssembly** (Emscripten + WebGL 2 + WebAudio).
+
+> **Try it online:** [Launch the WebAssembly Demo](https://lagamma.github.io/gammaraylib/)
 
 ## Features
 * **2D & 3D Rendering**: Batched OpenGL/WebGL2 renderer (`rlgl`), shapes, textures, procedural checked textures, and 3D primitives/models.
