@@ -198,13 +198,14 @@ def load_font(gl: OwnedDLHandle, path: String) raises -> Font:
 
     return Font(tex, CELL, advances)
 
+
 def draw_text(mut rl: RLGL, gl: OwnedDLHandle, font: Font, text: String, x: Float32, y: Float32, font_size: Float32, color: Vec4f) raises:
     var is_default = font.base_size <= 8
-    var sz = font_size if is_default else (font_size * 1.28)
-    var glyph_w = (sz * 0.75) if is_default else (sz * 1.17)
-    var glyph_h = (sz * 0.90) if is_default else (sz * 1.17)
+    var sz = font_size
+    var glyph_w = (sz * 0.75) if is_default else sz
+    var glyph_h = (sz * 0.90) if is_default else sz
     var cursor_x = x
-    var cursor_y = y if is_default else (y - (sz * 0.24))
+    var cursor_y = y
 
     rl.begin_mode(gl, GL_TRIANGLES)
     rl.set_texture(gl, font.texture.id)
@@ -246,7 +247,7 @@ def draw_text(mut rl: RLGL, gl: OwnedDLHandle, font: Font, text: String, x: Floa
 
 def measure_text(font: Font, text: String, font_size: Float32) -> Float32:
     var is_default = font.base_size <= 8
-    var sz = font_size if is_default else (font_size * 1.28)
+    var sz = font_size
     var max_w: Float32 = 0.0
     var cur_w: Float32 = 0.0
     var bytes = text.as_bytes()

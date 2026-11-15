@@ -488,7 +488,9 @@ struct Raylib:
         return sound.is_playing()
     def stop_sound(self, sound: Sound):
         sound.stop()
+    #def load_font(self, path: String, pixel_size: Int = 48) raises -> Font:
+    #    return load_font(self.gl, path, pixel_size)
     def load_font(self, path: String, pixel_size: Int = 48) raises -> Font:
-        return load_font(self.gl, path, pixel_size)
+        return load_font(self.gl, path)
     def measure_text(self, text: String, font_size: Float32) -> Float32:
         return measure_text(self.default_font, text, font_size)
