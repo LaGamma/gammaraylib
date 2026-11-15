@@ -39,7 +39,7 @@ comptime GL_SRC_ALPHA: c_uint          = 0x0302
 comptime GL_ONE_MINUS_SRC_ALPHA: c_uint = 0x0303
 
 comptime FLOATS_PER_VERTEX: Int = 12  # x, y, z, r, g, b, a, u, v, nx, ny, nz
-comptime MAX_BATCH_VERTICES: Int = 8192
+comptime MAX_BATCH_VERTICES = 65536
 
 struct Camera3D(Copyable, Movable):
     var position: Vector3
