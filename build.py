@@ -207,7 +207,11 @@ def build_wasm(
     print(f"[done] Built WebAssembly bundle at {dist_dir}/")
 
     if run_after:
-        run([sys.executable, "-m", "http.server", str(port)], cwd=dist_dir)
+        print(f"[serve] Serving {dist_dir}/ at http://127.0.0.1:{port} (Press Ctrl+C to stop)")
+        try:
+            run([sys.executable, "-m", "http.server", str(port)], cwd=dist_dir)
+        except KeyboardInterrupt:
+            print("\n[serve] Stopped HTTP server.")
 
 
 def main() -> None:
