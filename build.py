@@ -91,6 +91,12 @@ def build_native(
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     opt_flags = ["-O0", "-g"] if debug else ["-O3"]
+    engine_dir = Path(__file__).resolve().parent
+    ws_c = engine_dir / "native" / "ws_native2.c"
+    if ws_c.is_file():
+        ws_so = out_path.parent / "libgrl_ws.so"
+        run(["cc", "-O2", "-shared", "-fPIC", str(ws_c), "-lcurl", "-o", str(ws_so)], cwd=work_dir)
+
     run(
         [
             "uv", "run", "mojo", "build",

@@ -243,6 +243,77 @@ int png_image_finish_read(void* image, const void* background, void* buffer, int
     return js_png_finish((uintptr_t)image, (uintptr_t)buffer);
 }
 
+// --- Cross-Platform WebSocket Bridge (Browser WebSocket API) ---
+EM_JS(int32_t, grl_ws_connect, (const char* url_ptr), {
+    let base = Number(url_ptr);
+    const bytes = Array.of();
+    while (HEAPU8[base] !== 0) {
+        bytes.push(HEAPU8[base++]);
+    }
+    const rawUrl = new TextDecoder().decode(new Uint8Array(bytes));
+    const queryWs = new URLSearchParams(window.location.search).get('ws');
+    const url = (queryWs && rawUrl.startsWith('ws://127.0.0.1')) ? queryWs : rawUrl;
+    if (window._grlWs) {
+        try { window._grlWs.close(); } catch (_) {}
+    }
+    window._grlWsState = 1;
+    window._grlWsInbox = Array.of();
+    try {
+        const ws = new WebSocket(url);
+        ws.onopen = () => { window._grlWsState = 2; };
+        ws.onerror = () => { window._grlWsState = 3; };
+        ws.onclose = () => { window._grlWsState = 0; };
+        ws.onmessage = (ev) => {
+            if (typeof ev.data === 'string') {
+                window._grlWsInbox.push(ev.data);
+            }
+        };
+        window._grlWs = ws;
+        return 0;
+    } catch (_) {
+        window._grlWsState = 3;
+        return -1;
+    }
+});
+
+EM_JS(int32_t, grl_ws_state, (void), {
+    return window._grlWsState || 0;
+});
+
+EM_JS(int32_t, grl_ws_send, (const char* data_ptr, int32_t len), {
+    if (!window._grlWs || window._grlWs.readyState !== WebSocket.OPEN) return -1;
+    const base = Number(data_ptr);
+    const n = Number(len);
+    let msg = "";
+    for (let i = 0; i < n; i++) {
+        msg += String.fromCharCode(HEAPU8[base + i]);
+    }
+    window._grlWs.send(msg);
+    return n;
+});
+
+EM_JS(int32_t, grl_ws_poll, (char* out_buf, int32_t max_len), {
+    if (!window._grlWsInbox || window._grlWsInbox.length === 0) return 0;
+    const msg = window._grlWsInbox.shift();
+    const limit = Math.min(msg.length, Number(max_len) - 1);
+    const base = Number(out_buf);
+    for (let i = 0; i < limit; i++) {
+        HEAPU8[base + i] = msg.charCodeAt(i) & 0xFF;
+    }
+    HEAPU8[base + limit] = 0;
+    return limit;
+});
+
+EM_JS(int32_t, grl_ws_close, (void), {
+    if (window._grlWs) {
+        try { window._grlWs.close(); } catch (_) {}
+        window._grlWs = null;
+    }
+    window._grlWsState = 0;
+    window._grlWsInbox = Array.of();
+    return 0;
+});
+
 // --- dlopen / dlsym Wrappers ---
 int64_t mojo_dlopen(int64_t filename, int32_t flags) {
     return 1; // Always return valid non-zero handle immediately without calling JS dlopen
@@ -253,6 +324,11 @@ int64_t mojo_dlsym(int64_t handle, const char* symbol) {
         if (strcmp(symbol, "png_image_begin_read_from_file") == 0) return (int64_t)(uintptr_t)png_image_begin_read_from_file;
         if (strcmp(symbol, "png_image_finish_read") == 0) return (int64_t)(uintptr_t)png_image_finish_read;
         if (strcmp(symbol, "glfwGetKey") == 0) return (int64_t)(uintptr_t)mojo_glfwGetKey;
+        if (strcmp(symbol, "grl_ws_connect") == 0) return (int64_t)(uintptr_t)grl_ws_connect;
+        if (strcmp(symbol, "grl_ws_state") == 0)   return (int64_t)(uintptr_t)grl_ws_state;
+        if (strcmp(symbol, "grl_ws_send") == 0)    return (int64_t)(uintptr_t)grl_ws_send;
+        if (strcmp(symbol, "grl_ws_poll") == 0)    return (int64_t)(uintptr_t)grl_ws_poll;
+        if (strcmp(symbol, "grl_ws_close") == 0)   return (int64_t)(uintptr_t)grl_ws_close;
     }
     // In Emscripten, NULL (0) is RTLD_DEFAULT for the main module!
     void* res = dlsym(NULL, symbol);

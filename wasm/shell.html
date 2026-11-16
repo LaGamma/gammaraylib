@@ -142,6 +142,15 @@
       border-radius: 8px;
       pointer-events: auto;
     }
+    .grl-online-btn {
+      position: fixed;
+      top: 14px;
+      right: 66px;
+      padding: 8px 12px;
+      font-size: 13px;
+      border-radius: 8px;
+      pointer-events: auto;
+    }
     .grl-btn.active {
       background: rgba(65, 155, 235, 0.85);
       border-color: #ffffff;
@@ -170,6 +179,7 @@
       <div class="grl-btn grl-action-btn" data-btn="a">A</div>
     </div>
     <div class="grl-btn grl-pause-btn" data-btn="pause">❚❚</div>
+    <div class="grl-btn grl-online-btn" data-btn="online">🌐 Online</div>
   </div>
 
   <script>
@@ -213,6 +223,7 @@
           a: Array.of(32, 257),      // Space + Enter
           b: Array.of(340),          // Left Shift
           pause: Array.of(80),       // P
+          online: Array.of(78),      // N
         },
         labels: { a: 'A', b: 'B', pause: '❚❚' },
       },
@@ -336,8 +347,8 @@
       if (dpadMouseDown) releaseDpad();
     });
 
-    // --- Action & Pause Buttons ---
-    document.querySelectorAll('#grl-touch-overlay .grl-action-btn, #grl-touch-overlay .grl-pause-btn').forEach((btn) => {
+      // --- Action & Pause Buttons ---
+      document.querySelectorAll('#grl-touch-overlay .grl-action-btn, #grl-touch-overlay .grl-pause-btn, #grl-touch-overlay .grl-online-btn').forEach((btn) => {
       const name = btn.getAttribute('data-btn');
       const setPressed = (down, e) => {
         if (e) {
@@ -434,6 +445,22 @@
       fitCanvas();
       canvasEl.focus();
     });
+
+    const _OrigWebSocket = window.WebSocket;
+    window.WebSocket = function(url, protocols) {
+      if (typeof url === 'string' && url.startsWith('ws://127.0.0.1')) {
+        const autoWs = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws';
+        const queryWs = new URLSearchParams(window.location.search).get('ws');
+        url = queryWs || autoWs;
+      }
+      console.log('[ws-override] connecting to:', url);
+      return protocols !== undefined ? new _OrigWebSocket(url, protocols) : new _OrigWebSocket(url);
+    };
+    window.WebSocket.prototype = _OrigWebSocket.prototype;
+    window.WebSocket.CONNECTING = _OrigWebSocket.CONNECTING;
+    window.WebSocket.OPEN = _OrigWebSocket.OPEN;
+    window.WebSocket.CLOSING = _OrigWebSocket.CLOSING;
+    window.WebSocket.CLOSED = _OrigWebSocket.CLOSED;
 
     var Module = {
       canvas: canvasEl,

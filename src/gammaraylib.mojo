@@ -12,6 +12,7 @@ from rmaterials import Material, MaterialMap, MATERIAL_MAP_DIFFUSE, MATERIAL_MAP
 from rmodels import Mesh, Model, load_model, draw_model
 from raudio import AudioDevice, Sound, load_sound, gen_sound_click, gen_sound_laser, gen_sound_explosion, gen_sound_powerup
 from rgui import Rectangle, gui_panel, gui_button, gui_checkbox, gui_slider
+from rnet import WebSocketClient, WS_STATE_CLOSED, WS_STATE_CONNECTING, WS_STATE_OPEN, WS_STATE_ERROR
 
 comptime VoidPtr    = Pointer[NoneType, MutUntrackedOrigin]
 comptime OptVoidPtr = Optional[VoidPtr]
@@ -69,6 +70,7 @@ comptime KEY_DOWN: c_int        = 264
 comptime KEY_UP: c_int          = 265
 comptime KEY_LEFT_SHIFT: c_int  = 340
 comptime KEY_RIGHT_SHIFT: c_int = 344
+comptime KEY_RIGHT_CTRL: c_int  = 345
 
 comptime MAX_KEYS: Int          = 350
 comptime MAX_MOUSE_BUTTONS: Int = 8
